@@ -15,14 +15,14 @@ const storage = multer.diskStorage({
     filename(req, file, cb){
         const ext = path.extname(file.originalname);
         const sessionId = req.params.id || 'unknown';
-        cb(null, `${sessionId}-${Data.now()}${ext}`);
+        cb(null, `${sessionId}-${Date.now()}${ext}`);
     },
 });
 
 const fileFilter = (req, file, cb) => {
     //file.mimetype ==>It tells the type of file, like audio/mp3 or image/png.”
-    if(file.mineType.startsWith("audio/") || 
-      file.mimeType === "application/octet-stream"){
+    if(file.mimetype.startsWith("audio/") || 
+      file.mimetype === "application/octet-stream"){
         cb(null, true);
     }else{
         cb(new Error("Not an audio file"), false)

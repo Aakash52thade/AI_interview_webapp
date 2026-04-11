@@ -1,30 +1,47 @@
-import { requireAuth } from "@clerk/express";
-import User from "../models/userModel.js";
 
-// Protect routes (check if user is logged in)
-export const protect = (requireAuth);
+import {clerkMiddleware, getAuth} from '@clerk/express';
+import User from '../models/User.js'
 
-// Optional: Attach user data from MongoDB
+//Initialize clerk middleware
+//add this once in server.js: app.use(clearkMiddleware())
+//it verifies the jwt every request and populate req.auth;
+export {clerkMiddleware}
+
+// step 2 == Protect a route =========
+//// Returns 401 automatically if the token is missing or invalid.
+
+export const protect = (req, res, next) => {
+  const {userId} = getAuth(req);
+
+  if(!userId){
+    return res.status(401).json({
+      message: "Unauthorized. Please sign in"
+    })
+  }
+  next();
+}
+
 export const attachUser = async (req, res, next) => {
   try {
-    const { userId } = req.auth;
+    const { userId, sessionClaims } = getAuth(req);
 
-    // Find user in DB using clerkId
-    let user = await User.findOne({ clerkId: userId });
-
-    // If user does not exist → create one
-    if (!user) {
-      user = await User.create({
+    // findOneAndUpdate → finds the user and updates name/email
+    // if user doesn't exist → creates one (upsert: true)
+    // new: true → returns the updated document
+    let user = await User.findOneAndUpdate(
+      { clerkId: userId },
+      {
         clerkId: userId,
-        email: req.auth?.sessionClaims?.email || "",
-        name: req.auth?.sessionClaims?.name || ""
-      });
-    }
+        email: sessionClaims?.email ?? "",
+        name: sessionClaims?.name ?? "",
+      },
+      { upsert: true, returnDocument: "after" }
+    );
 
-    req.user = user; // attach user to request
+    req.user = user;
     next();
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server Error" });
+    console.error("attachUser error:", error);
+    res.status(500).json({ message: "Server error during authentication." });
   }
 };

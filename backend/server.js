@@ -4,10 +4,10 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import { Server } from 'socket.io';
 import connetDB from './config/db.js';
-import { notFound, errorHandler } from "./middleware/errorHandler.js";
-// import userRoutes from './routes/userRoutes.js';
+import { notFound, errorMiddleware } from "./middleware/errorMiddleware.js";
+import userRoutes from './routes/userRoutes.js';
 // import sessionRoutes from './routes/sessionRoutes.js'
-import {protect, attachUser} from './middleware/authMiddleware.js'
+import {clerkMiddleware, protect, attachUser} from './middleware/authMiddleware.js'
 
 //dotenv config
 dotenv.config();
@@ -21,37 +21,39 @@ const app = express();
 //if we use websocket as well it willhandle real time communication between client and server
 const server = http.createServer(app); 
 
+// ======== CORS =============
+const allowedOrigins = [
+  "http://localhost:5173", // Vite dev server
+  process.env.CLIENT_URL,  // Production frontend URL
+].filter(Boolean);
+
 // ❌ FIX: need 'new' keyword
+
+
+
+// ❌ allowOrigin not defined → comment this block for now
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 const io = new Server(server, {
     cors: {
-        origin: "*", // ❌ allowOrigin not defined yet → temporary fix
+        origin: allowedOrigins, // ❌ allowOrigin not defined yet → temporary fix
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         credentials: true,
         allowedHeaders : ['Content-Type', 'Authorization'],
     }
 })
-
-
-// ❌ allowOrigin not defined → comment this block for now
-/*
-app.use(cors({
-    origin: (origin, callback) => {
-        if(!origin) return callback(null, true);
-        if(allowOrigin.includes(origin)){
-            callback(null, true)
-        }else{
-            if(process.env.NODE_ENV === 'production'){
-                callback(null, true)
-            }else{
-                callback(new Error("Not allwed by cors"))
-            }
-        }
-    },
-     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders : ['Content-Type', 'Authorization']
-}))
-*/
 
 // ✅ simple cors for now
 app.use(cors());
@@ -60,18 +62,28 @@ app.use(cors());
 //some other middleware
 app.use(express.json()); //reads json data from req.body and convert into js object
 
-// ❌ sessionRoutes not created yet
-// app.use('/api/sessions', sessionRoutes);
+//this read the token from the request header and makes user
+//info available via req.auth. it comes before the route
+app.use(clerkMiddleware())
 
-// Store io globally in app So all files can use it
-//OR store socket.io instance globally to use in routes/controller
+app.use("/api/users", userRoutes);
+
+app.get("/api/test", protect, attachUser, (req, res) => {
+  res.json({
+    message: "Auth working!",
+    mongoUser: req.user,
+  });
+});
+
+
+
 app.set('io', io); 
 
 app.get('/', (req, res) => {
     res.send("API is running")
 })
 
-app.use('/api/sessions', protect, attachUser, sessionRoutes);
+app.use('/api/sessions', protect, attachUser);
 
 // ❌ userRoutes not created yet
 // app.use("/api/users", userRoutes);
@@ -102,7 +114,7 @@ io.on("connection", (socket) => {
 
 // ❌ not created yet
 app.use(notFound);
-app.use(errorHandler);
+app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 5000;
 

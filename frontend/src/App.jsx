@@ -1,20 +1,17 @@
-import {
-  SignIn,
-  SignedIn,
-  SignedOut,
-  UserButton,
-} from "@clerk/clerk-react";
+import { SignedIn, SignedOut, RedirectToSignIn } from "@clerk/clerk-react";
+import Dashboard from "./pages/Dashboard.jsx";
 
 function App() {
   return (
     <>
+      {/* If user is NOT signed in → redirect to Clerk's hosted sign-in page */}
       <SignedOut>
-        <SignIn />
+        <RedirectToSignIn />
       </SignedOut>
 
+      {/* If user IS signed in → show the app */}
       <SignedIn>
-        <h1>Welcome 🚀</h1>
-        <UserButton />
+        <Dashboard />
       </SignedIn>
     </>
   );
