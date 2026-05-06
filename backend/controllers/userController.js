@@ -9,7 +9,7 @@ const getUserProfile = asyncHandler(async(req, res) => {
        res.json({
          _id: req.user._id,
          clerkId: req.user.clerkId,
-         name: erq.user.name,
+         name: req.user.name,
          email: req.user.email,
          preferredRole: req.user.preferredRole,
        });

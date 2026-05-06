@@ -1,22 +1,12 @@
-
-import {clerkMiddleware, getAuth} from '@clerk/express';
+import { clerkMiddleware, getAuth } from '@clerk/express';
 import User from '../models/User.js'
 
-//Initialize clerk middleware
-//add this once in server.js: app.use(clearkMiddleware())
-//it verifies the jwt every request and populate req.auth;
-export {clerkMiddleware}
-
-// step 2 == Protect a route =========
-//// Returns 401 automatically if the token is missing or invalid.
+export { clerkMiddleware }
 
 export const protect = (req, res, next) => {
-  const {userId} = getAuth(req);
-
-  if(!userId){
-    return res.status(401).json({
-      message: "Unauthorized. Please sign in"
-    })
+  const { userId } = getAuth(req);
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized. Please sign in" });
   }
   next();
 }
@@ -25,17 +15,19 @@ export const attachUser = async (req, res, next) => {
   try {
     const { userId, sessionClaims } = getAuth(req);
 
-    // findOneAndUpdate → finds the user and updates name/email
-    // if user doesn't exist → creates one (upsert: true)
-    // new: true → returns the updated document
+    // ADD THIS - tells you exactly what Clerk is sending
+    console.log("SESSION CLAIMS:", JSON.stringify(sessionClaims, null, 2));
+
     let user = await User.findOneAndUpdate(
       { clerkId: userId },
       {
-        clerkId: userId,
-        email: sessionClaims?.email ?? "",
-        name: sessionClaims?.name ?? "",
+        $set: {                          // $set was MISSING before - critical bug
+          email: sessionClaims?.email ?? "",
+          name: sessionClaims?.name ?? "",
+        },
+        $setOnInsert: { clerkId: userId } // only set clerkId on first creation
       },
-      { upsert: true, returnDocument: "after" }
+      { upsert: true, new: true }         // new:true not returnDocument
     );
 
     req.user = user;

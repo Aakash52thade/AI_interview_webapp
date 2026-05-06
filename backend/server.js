@@ -1,124 +1,88 @@
 import express from 'express';
 import http from 'http';
 import dotenv from 'dotenv';
-import cors from 'cors';
-import { Server } from 'socket.io';
-import connetDB from './config/db.js';
-import { notFound, errorMiddleware } from "./middleware/errorMiddleware.js";
-import userRoutes from './routes/userRoutes.js';
-// import sessionRoutes from './routes/sessionRoutes.js'
-import {clerkMiddleware, protect, attachUser} from './middleware/authMiddleware.js'
-
-//dotenv config
 dotenv.config();
 
-//connect to database
-connetDB();
+import cors from 'cors';
+import { Server } from 'socket.io';
+import connectDB from './config/db.js';
+import { notFound, errorMiddleware } from './middleware/errorMiddleware.js';
+import userRoutes from './routes/userRoutes.js';
+import sessionRoutes from './routes/sessionRoutes.js';
+import { clerkMiddleware, protect, attachUser } from './middleware/authMiddleware.js';
+
+// Connect to MongoDB
+connectDB();
 
 const app = express();
+const server = http.createServer(app);
 
-//create an HTTP server the express app to handle incoming requests;
-//if we use websocket as well it willhandle real time communication between client and server
-const server = http.createServer(app); 
-
-// ======== CORS =============
+// ── CORS origins ──────────────────────────────────────────────────────────────
 const allowedOrigins = [
-  "http://localhost:5173", // Vite dev server
-  process.env.CLIENT_URL,  // Production frontend URL
+    'http://localhost:5173',
+    'http://localhost:5174',
+    process.env.CLIENT_URL,
 ].filter(Boolean);
 
-// ❌ FIX: need 'new' keyword
-
-
-
-// ❌ allowOrigin not defined → comment this block for now
-app.use(
-  cors({
+// ── CORS middleware ───────────────────────────────────────────────────────────
+app.use(cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, etc.)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error("Not allowed by CORS"));
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        callback(new Error('Not allowed by CORS'));
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
+// ── Socket.io ─────────────────────────────────────────────────────────────────
 const io = new Server(server, {
     cors: {
-        origin: allowedOrigins, // ❌ allowOrigin not defined yet → temporary fix
+        origin: allowedOrigins,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         credentials: true,
-        allowedHeaders : ['Content-Type', 'Authorization'],
-    }
-})
-
-// ✅ simple cors for now
-app.use(cors());
-
-
-//some other middleware
-app.use(express.json()); //reads json data from req.body and convert into js object
-
-//this read the token from the request header and makes user
-//info available via req.auth. it comes before the route
-app.use(clerkMiddleware())
-
-app.use("/api/users", userRoutes);
-
-app.get("/api/test", protect, attachUser, (req, res) => {
-  res.json({
-    message: "Auth working!",
-    mongoUser: req.user,
-  });
+        allowedHeaders: ['Content-Type', 'Authorization'],
+    },
 });
 
+// ── Body parsing ──────────────────────────────────────────────────────────────
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
+// ── Clerk auth middleware — must be before routes ─────────────────────────────
+app.use(clerkMiddleware());
 
-app.set('io', io); 
+// ── Make io available inside controllers via req.app.get('io') ────────────────
+app.set('io', io);
 
-app.get('/', (req, res) => {
-    res.send("API is running")
-})
+// ── Routes ────────────────────────────────────────────────────────────────────
+app.get('/', (req, res) => res.send('API is running'));
 
-app.use('/api/sessions', protect, attachUser);
+app.use('/api/users', userRoutes);
+app.use('/api/sessions', sessionRoutes);
 
-// ❌ userRoutes not created yet
-// app.use("/api/users", userRoutes);
+// ── Socket.io connection handler ──────────────────────────────────────────────
+io.on('connection', (socket) => {
+    console.log(`User connected: ${socket.id}`);
 
-// ❌ duplicate + not defined
-// app.use('/api/sessions', sessionRoutes)
-
-
-//socket 
-//io.on is listen which triger every time when new user open app
-io.on("connection", (socket) => {
-
-    console.log(`A user connected ${socket.id}`);
-
-    //create room for that we have to get user Id from socket handshake
     const userId = socket.handshake.query.userId;
-
-    // ❌ FIX: use after defining
-    if(userId){
-       socket.join(userId);  //this add user in room  //room's are server side channel
-       console.log(`User ${socket.id} joined room: ${userId}`);
+    if (userId) {
+        socket.join(userId);
+        console.log(`User ${socket.id} joined room: ${userId}`);
     }
 
-    socket.on("disconnect", () => {
-        console.log(`User Disconnected ${socket.id}`);
-    })
-})
+    socket.on('disconnect', () => {
+        console.log(`User disconnected: ${socket.id}`);
+    });
+});
 
-// ❌ not created yet
+// ── Error handling — must be last ─────────────────────────────────────────────
 app.use(notFound);
 app.use(errorMiddleware);
 
+// ── Start server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-
-server.listen(
-    PORT, 
-    () => console.log(`server running in ${process.env.NODE_ENV} mode on port ${PORT}`)
-)
+server.listen(PORT, () =>
+    console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`)
+);

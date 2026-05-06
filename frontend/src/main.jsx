@@ -1,7 +1,15 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import {Provider} from 'react-redux'
 import App from "./App.jsx";
 import { ClerkProvider } from "@clerk/clerk-react";
+import './index.css'
+import { StrictMode } from "react";
+import store from './app/store.js'
+import {BrowserRouter as Router} from 'react-router-dom'
+
+
+
 
 const  PUBLISHABLE_KEY  = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -10,7 +18,13 @@ if (!PUBLISHABLE_KEY) {
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-    <App />
-  </ClerkProvider>
+  <StrictMode>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+       <Provider store={store}>
+         <Router>
+           <App />
+         </Router>
+       </Provider>
+    </ClerkProvider>
+  </StrictMode>
 );
