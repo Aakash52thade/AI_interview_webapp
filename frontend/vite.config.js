@@ -4,18 +4,18 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
-    // Warn if any chunk exceeds 800kb
     chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
-        // Split vendor libraries into separate chunks — faster repeat loads
-        manualChunks: {
-          'react-vendor':  ['react', 'react-dom', 'react-router-dom'],
-          'redux-vendor':  ['@reduxjs/toolkit', 'react-redux'],
-          'clerk-vendor':  ['@clerk/clerk-react'],
-          'monaco-vendor': ['@monaco-editor/react'],
-          'chart-vendor':  ['chart.js', 'react-chartjs-2'],
-          'ui-vendor':     ['react-toastify', 'socket.io-client'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@monaco-editor') || id.includes('monaco-editor')) return 'monaco-vendor'
+            if (id.includes('@clerk'))           return 'clerk-vendor'
+            if (id.includes('chart.js') || id.includes('react-chartjs')) return 'chart-vendor'
+            if (id.includes('@reduxjs') || id.includes('react-redux'))   return 'redux-vendor'
+            if (id.includes('react-dom') || id.includes('react-router')) return 'react-vendor'
+            if (id.includes('socket.io') || id.includes('react-toastify')) return 'ui-vendor'
+          }
         },
       },
     },
