@@ -7,7 +7,8 @@ const store = configureStore({
         auth: authReducer,
         sessions: sessionReducer,
     },
-    devTools: true,
-})
+    // disable Redux DevTools in production — don't expose state to browser extensions
+    devTools: import.meta.env.DEV,
+});
 
 export default store;

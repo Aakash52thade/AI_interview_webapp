@@ -66,7 +66,7 @@ const sessionSchema= new mongoose.Schema({
     },
     status:{
         type:String,
-        enum:["pending","in-progress","completed","failed"],
+        enum:["pending","in-progress", "ending" ,"completed","failed"],
         default:"pending"
     },
     overallScore: {

@@ -1,5 +1,4 @@
 const SessionCard = ({ session, onClick, onDelete }) => {
-  // Pending sessions can't be deleted yet
   const isDeletable = session.status !== 'pending';
 
   const getIcon = () => {
@@ -19,17 +18,20 @@ const SessionCard = ({ session, onClick, onDelete }) => {
     return '💻';
   };
 
-  // Status badge styling
   const statusClass = {
     completed:     'bg-emerald-400/10 text-emerald-400',
     'in-progress': 'bg-amber-400/10 text-amber-400',
     pending:       'bg-violet-400/10 text-violet-400',
+    failed:        'bg-red-400/10 text-red-400',
+    ending:        'bg-amber-400/10 text-amber-400',
   }[session.status] || 'bg-violet-400/10 text-violet-400';
 
-  // Score color
+  // fixed: was text-white/10 which was nearly invisible — now text-slate-600
   const scoreColor = session.status === 'completed'
     ? (session.overallScore > 75 ? 'text-emerald-400' : 'text-orange-400')
-    : 'text-white/10';
+    : 'text-slate-600';
+
+  const actionLabel = session.status === 'completed' ? 'Results' : 'Resume';
 
   return (
     <div
@@ -74,7 +76,7 @@ const SessionCard = ({ session, onClick, onDelete }) => {
           {session.status}
         </span>
         <span className="text-violet-400 font-bold text-xs flex items-center gap-1">
-          {session.status === 'completed' ? 'Results' : 'Resume'}
+          {actionLabel}
           <svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7"/>
           </svg>

@@ -33,16 +33,18 @@ const useSocket = () => {
         });
 
         socket.on('sessionUpdate', (payload) => {
-            console.log('Real-time update:', payload.status);
+        dispatch(socketUpdateSession(payload));
 
-            // Update Redux state (sessions list + activeSession)
-            dispatch(socketUpdateSession(payload));
+        if (payload.status === 'QUESTIONS_READY') {
+            navigate(`/interview/${payload.sessionId}`);
+        }
 
-            // Navigate to interview page when questions are ready
-            if (payload.status === 'QUESTIONS_READY') {
-                navigate(`/interview/${payload.sessionId}`);
-            }
-        });
+        // ✅ Auto-navigate to review when AI finishes all evaluations
+        if (payload.status === 'SESSION_COMPLETED') {
+            localStorage.removeItem(`drafts_${payload.sessionId}`);
+            navigate(`/review/${payload.sessionId}`);
+        }
+    });
 
         // Cleanup on unmount or when user changes
         return () => {

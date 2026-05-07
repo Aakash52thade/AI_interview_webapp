@@ -5,169 +5,166 @@ const API_URL = `${import.meta.env.VITE_API_URL}/sessions`;
 
 const api = axios.create({ baseURL: API_URL });
 
-let clerkToken = null;
+// Stores Clerk's getToken function — set once from App.jsx
+let getClerkToken = null;
 
-export const setAxiosToken = (token) => {
-    clerkToken = token;
+export const setTokenGetter = (fn) => {
+    getClerkToken = fn;
 };
 
-// Attach Clerk token to every request automatically
-api.interceptors.request.use((request) => {
-    if (clerkToken) {
-        request.headers.Authorization = `Bearer ${clerkToken}`;
+// kept for backwards compat — App.jsx still calls it
+export const setAxiosToken = (_token) => {};
+
+// Every request automatically gets a fresh Clerk token
+api.interceptors.request.use(async (request) => {
+    if (getClerkToken) {
+        const token = await getClerkToken();
+        request.headers.Authorization = `Bearer ${token}`;
     }
     return request;
 });
 
-// Log 401s — Clerk will refresh token on next getToken() call
 api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            console.error('Session unauthorized - token may have expired');
+            console.error('Session API 401 — token may be expired');
         }
         return Promise.reject(error);
     }
 );
 
 const initialState = {
-    sessions: [],
+    sessions:      [],
     activeSession: null,
-    isGenerating: false,
-    isError: false,
-    isLoading: false,
-    message: '',
+    isGenerating:  false,
+    isError:       false,
+    isLoading:     false,
+    message:       '',
 };
 
-// ── GET /api/sessions ─────────────────────────────────────────────────────────
 export const getSessions = createAsyncThunk('sessions/getAll', async (_, thunkAPI) => {
     try {
-        const response = await api.get('/');
-        return response.data;
+        const res = await api.get('/');
+        return res.data;
     } catch (error) {
-        const message =
-            error.response?.data?.message || error.message || error.toString();
-        return thunkAPI.rejectWithValue(message);
+        return thunkAPI.rejectWithValue(
+            error.response?.data?.message || error.message || error.toString()
+        );
     }
 });
 
-// ── POST /api/sessions ────────────────────────────────────────────────────────
 export const createSession = createAsyncThunk('sessions/create', async (sessionData, thunkAPI) => {
     try {
-        const response = await api.post('/', sessionData);
-        return response.data;
+        const res = await api.post('/', sessionData);
+        return res.data;
     } catch (error) {
-        const message =
-            error.response?.data?.message || error.message || error.toString();
-        return thunkAPI.rejectWithValue(message);
+        return thunkAPI.rejectWithValue(
+            error.response?.data?.message || error.message || error.toString()
+        );
     }
 });
 
-// ── GET /api/sessions/:id ─────────────────────────────────────────────────────
 export const getSessionById = createAsyncThunk('sessions/getOne', async (sessionId, thunkAPI) => {
     try {
-        const response = await api.get(`/${sessionId}`);
-        return response.data;
+        const res = await api.get(`/${sessionId}`);
+        return res.data;
     } catch (error) {
-        const message =
-            error.response?.data?.message || error.message || error.toString();
-        return thunkAPI.rejectWithValue(message);
+        return thunkAPI.rejectWithValue(
+            error.response?.data?.message || error.message || error.toString()
+        );
     }
 });
 
-// ── DELETE /api/sessions/:id ──────────────────────────────────────────────────
 export const deleteSession = createAsyncThunk('sessions/delete', async (sessionId, thunkAPI) => {
     try {
-        const response = await api.delete(`/${sessionId}`);
-        return response.data.id;
+        const res = await api.delete(`/${sessionId}`);
+        return res.data.id;
     } catch (error) {
-        const message =
-            error.response?.data?.message || error.message || error.toString();
-        return thunkAPI.rejectWithValue(message);
+        return thunkAPI.rejectWithValue(
+            error.response?.data?.message || error.message || error.toString()
+        );
     }
 });
 
-// ── POST /api/sessions/:id/submit-answer ──────────────────────────────────────
 export const submitAnswer = createAsyncThunk(
     'sessions/submitAnswer',
     async ({ sessionId, formData }, thunkAPI) => {
         try {
-            const response = await api.post(`/${sessionId}/submit-answer`, formData, {
+            const res = await api.post(`/${sessionId}/submit-answer`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
-            return response.data;
+            return res.data;
         } catch (error) {
-            const message =
-                error.response?.data?.message || error.message || error.toString();
-            return thunkAPI.rejectWithValue(message);
+            return thunkAPI.rejectWithValue(
+                error.response?.data?.message || error.message || error.toString()
+            );
         }
     }
 );
 
-// ── POST /api/sessions/:id/end ────────────────────────────────────────────────
 export const endSession = createAsyncThunk('sessions/endSession', async (sessionId, thunkAPI) => {
     try {
-        const response = await api.post(`/${sessionId}/end`);
-        return response.data;
+        const res = await api.post(`/${sessionId}/end`);
+        return res.data; // { message, session?, status? }
     } catch (error) {
-        const message =
-            error.response?.data?.message || error.message || error.toString();
-        return thunkAPI.rejectWithValue(message);
+        return thunkAPI.rejectWithValue(
+            error.response?.data?.message || error.message || error.toString()
+        );
     }
 });
 
-// ── Slice ─────────────────────────────────────────────────────────────────────
 export const sessionSlice = createSlice({
     name: 'sessions',
     initialState,
     reducers: {
         reset: (state) => {
-            state.isError = false;
-            state.message = '';
-            state.isLoading = false;
+            state.isError     = false;
+            state.message     = '';
+            state.isLoading   = false;
             state.isGenerating = false;
         },
 
-        // Called by useSocket when a Socket.io event arrives
         socketUpdateSession: (state, action) => {
             const { sessionId, status, message, session } = action.payload;
             state.message = message;
 
-            // Stop generating spinner when AI is done or failed
             if (status === 'QUESTIONS_READY' || status === 'GENERATION_FAILED') {
                 state.isGenerating = false;
             }
 
-            // Always update the sessions list so Dashboard reflects new status
+            // Update sessions list on dashboard
             if (session) {
                 const exists = state.sessions.find(s => s._id === sessionId);
                 if (exists) {
-                    // Update existing session in list
                     state.sessions = state.sessions.map(s =>
                         s._id === sessionId
                             ? { ...s, status: session.status, overallScore: session.overallScore }
                             : s
                     );
-                } else if (status === 'QUESTIONS_READY' || status === 'AI_GENERATING_QUESTIONS') {
-                    // New session just created — add it to the list
+                } else {
                     state.sessions = [session, ...state.sessions];
                 }
             }
 
-            // Update activeSession (InterviewRunner page)
-            if (session && state.activeSession && state.activeSession._id === sessionId) {
-                state.activeSession.questions = state.activeSession.questions.map(
-                    (currentQ, index) => {
+            // Update activeSession for InterviewRunner
+            if (session && state.activeSession?._id === sessionId) {
+                state.activeSession = {
+                    ...state.activeSession,
+                    status:       session.status,
+                    overallScore: session.overallScore,
+                    metrics:      session.metrics,
+                    // Merge questions — keep local submitted state, apply evaluated data
+                    questions: state.activeSession.questions.map((currentQ, index) => {
                         const incomingQ = session.questions?.[index];
                         if (!incomingQ) return currentQ;
+                        // If AI just evaluated this question, use incoming
                         if (incomingQ.isEvaluated) return incomingQ;
+                        // If locally submitted but incoming not yet evaluated, keep local
                         if (currentQ.isSubmitted && !incomingQ.isSubmitted) return currentQ;
                         return incomingQ;
-                    }
-                );
-                state.activeSession.overallScore = session.overallScore;
-                state.activeSession.status = session.status;
-                state.activeSession.metrics = session.metrics;
+                    }),
+                };
             }
         },
 
@@ -178,38 +175,35 @@ export const sessionSlice = createSlice({
 
     extraReducers: (builder) => {
         builder
-            // getSessions
             .addCase(getSessions.pending, (state) => {
                 state.isLoading = true;
             })
             .addCase(getSessions.fulfilled, (state, action) => {
-                state.isLoading = false;
-                state.sessions = action.payload;
+                state.isLoading  = false;
+                state.sessions   = action.payload;
             })
             .addCase(getSessions.rejected, (state, action) => {
                 state.isLoading = false;
-                state.isError = true;
-                state.message = action.payload;
+                state.isError   = true;
+                state.message   = action.payload;
             })
 
-            // createSession
             .addCase(createSession.pending, (state) => {
-                state.isLoading = true;
+                state.isLoading    = true;
                 state.isGenerating = true;
                 state.activeSession = null;
             })
             .addCase(createSession.fulfilled, (state) => {
                 state.isLoading = false;
-                // isGenerating stays true — socket QUESTIONS_READY will clear it
+                // isGenerating stays true until socket fires QUESTIONS_READY
             })
             .addCase(createSession.rejected, (state, action) => {
-                state.isLoading = false;
-                state.isError = true;
+                state.isLoading    = false;
+                state.isError      = true;
                 state.isGenerating = false;
-                state.message = action.payload;
+                state.message      = action.payload;
             })
 
-            // getSessionById
             .addCase(getSessionById.fulfilled, (state, action) => {
                 state.activeSession = action.payload;
             })
@@ -218,20 +212,25 @@ export const sessionSlice = createSlice({
                 state.message = action.payload;
             })
 
-            // deleteSession
             .addCase(deleteSession.fulfilled, (state, action) => {
                 state.sessions = state.sessions.filter(s => s._id !== action.payload);
             })
+            .addCase(deleteSession.rejected, (state, action) => {
+                state.isError = true;
+                state.message = action.payload;
+            })
 
-            // submitAnswer
             .addCase(submitAnswer.rejected, (state, action) => {
                 state.isError = true;
                 state.message = action.payload;
             })
 
-            // endSession
             .addCase(endSession.fulfilled, (state, action) => {
-                state.activeSession = action.payload.session;
+                // Only update activeSession if a completed session was returned
+                // When status === 'ending', there is no session object in the response
+                if (action.payload?.session) {
+                    state.activeSession = action.payload.session;
+                }
             })
             .addCase(endSession.rejected, (state, action) => {
                 state.isError = true;

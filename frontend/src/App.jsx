@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { SignedIn, SignedOut, RedirectToSignIn, useAuth } from '@clerk/clerk-react';
 import { Routes, Route } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
@@ -12,24 +12,27 @@ import InterviewRunner from './pages/InterviewRunner.jsx';
 import SessionReview from './pages/sessionReview.jsx';
 import NotFound from './pages/NotFound.jsx';
 import { getUserProfile, setToken } from './features/auth/authSlice';
-import { setAxiosToken } from './features/sessions/sessionSlice';
+import { setTokenGetter } from './features/sessions/sessionSlice';
 
 const App = () => {
     const { isLoaded, getToken } = useAuth();
-    const dispatch = useDispatch();
+    const dispatch  = useDispatch();
+    const initDone  = useRef(false); // prevent double-init in StrictMode
 
-    // On app load: get Clerk token → store in Redux + axios → fetch MongoDB profile
     useEffect(() => {
+        if (!isLoaded || initDone.current) return;
+        initDone.current = true;
+
         const init = async () => {
             const token = await getToken();
             dispatch(setToken(token));
-            setAxiosToken(token);
-            dispatch(getUserProfile(token));
+            setTokenGetter(getToken);           // all session API calls refresh token automatically
+            dispatch(getUserProfile(token));    // fetch MongoDB user → socket room joins
         };
-        if (isLoaded) init();
+
+        init();
     }, [isLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Socket connection — lives at App level so it's always active
     useSocket();
 
     if (!isLoaded) return null;
@@ -43,15 +46,15 @@ const App = () => {
                 </SignedOut>
                 <SignedIn>
                     <Routes>
-                        <Route path="/"                    element={<Dashboard />} />
-                        <Route path="/profile"             element={<Profile />} />
+                        <Route path="/"                     element={<Dashboard />} />
+                        <Route path="/profile"              element={<Profile />} />
                         <Route path="/interview/:sessionId" element={<InterviewRunner />} />
-                        <Route path="/review/:sessionId"   element={<SessionReview />} />
-                        <Route path="*"                    element={<NotFound />} />
+                        <Route path="/review/:sessionId"    element={<SessionReview />} />
+                        <Route path="*"                     element={<NotFound />} />
                     </Routes>
                 </SignedIn>
             </main>
-            <ToastContainer position="top-right" autoClose={3000} />
+            <ToastContainer position="top-right" autoClose={3000} theme="dark" />
         </div>
     );
 };

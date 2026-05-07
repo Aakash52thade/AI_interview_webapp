@@ -1,7 +1,11 @@
 import express from 'express';
 import http from 'http';
+import fs from 'fs';
 import dotenv from 'dotenv';
 dotenv.config();
+
+// Auto-create uploads folder so multer never crashes on fresh deployments
+if (!fs.existsSync('./uploads')) fs.mkdirSync('./uploads', { recursive: true });
 
 import cors from 'cors';
 import { Server } from 'socket.io';
@@ -9,7 +13,7 @@ import connectDB from './config/db.js';
 import { notFound, errorMiddleware } from './middleware/errorMiddleware.js';
 import userRoutes from './routes/userRoutes.js';
 import sessionRoutes from './routes/sessionRoutes.js';
-import { clerkMiddleware, protect, attachUser } from './middleware/authMiddleware.js';
+import { clerkMiddleware } from './middleware/authMiddleware.js';
 
 // Connect to MongoDB
 connectDB();

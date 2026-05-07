@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@clerk/clerk-react';
-import { createSession, getSessions, reset, deleteSession, setAxiosToken } from '../features/sessions/sessionSlice';
-import { setToken } from '../features/auth/authSlice';
+import { createSession, getSessions, reset, deleteSession } from '../features/sessions/sessionSlice';
 import { toast } from 'react-toastify';
 import SessionCard from '../components/SessionCard';
 
@@ -15,19 +13,18 @@ const ROLES = [
     'Blockchain Developer', 'Mobile Developer (iOS/Android)', 'Game Developer',
     'UI/UX Designer', 'QA Automation Engineer', 'Product Manager',
 ];
-const LEVELS = ['Junior', 'Mid-Level', 'Senior'];
-const TYPES = [
-    { label: 'Oral Only',    value: 'oral-only' },
-    { label: 'Coding Mix',   value: 'coding-mix' },
+const LEVELS  = ['Junior', 'Mid-Level', 'Senior'];
+const TYPES   = [
+    { label: 'Oral Only',  value: 'oral-only'   },
+    { label: 'Coding Mix', value: 'coding-mix'  },
 ];
-const COUNTS = [5, 10, 15];
+const COUNTS  = [5, 10, 15];
 
 const Dashboard = () => {
     const dispatch  = useDispatch();
     const navigate  = useNavigate();
-    const { getToken } = useAuth();
 
-    const { user }    = useSelector((state) => state.auth);
+    const { user }   = useSelector((state) => state.auth);
     const { sessions, isLoading, isGenerating, isError, message } = useSelector((state) => state.sessions);
 
     const [formData, setFormData] = useState({
@@ -37,16 +34,10 @@ const Dashboard = () => {
         count:         COUNTS[0],
     });
 
-    // Refresh axios token and load sessions on mount
+    // Load sessions on mount
     useEffect(() => {
-        const init = async () => {
-            const token = await getToken();
-            dispatch(setToken(token));
-            setAxiosToken(token);
-            dispatch(getSessions());
-        };
-        init();
-    }, [dispatch, getToken]);
+        dispatch(getSessions());
+    }, [dispatch]);
 
     // Pre-fill role from user's preferredRole
     useEffect(() => {
@@ -66,18 +57,15 @@ const Dashboard = () => {
     const onChange = (e) =>
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
-    const onSubmit = async (e) => {
+    const onSubmit = (e) => {
         e.preventDefault();
-        // Always get fresh token before creating session
-        const token = await getToken();
-        dispatch(setToken(token));
-        setAxiosToken(token);
         dispatch(createSession(formData));
     };
 
     const viewSession = (session) => {
-        if (session.status === 'completed')   navigate(`/review/${session._id}`);
-        else if (session.status === 'in-progress') navigate(`/interview/${session._id}`);
+        if (session.status === 'completed')      navigate(`/review/${session._id}`);
+        else if (session.status === 'in-progress' || session.status === 'ending')
+                                                 navigate(`/interview/${session._id}`);
         else toast.info('Session is still being generated. Please wait...');
     };
 
